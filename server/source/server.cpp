@@ -1,24 +1,31 @@
 #include <iostream>
 #include <fstream>
+#include <string>
+#include <map>
+#include <random>
 #include <drogon/drogon.h>
+#include "../../network/source/network.h"
 
 using namespace drogon;
 
 typedef std::function<void(const HttpResponsePtr&)> Callback;
+network* nn;
+
+void log(std::string s)
+{
+    std::cout << s << std::endl;
+}
 
 void root_handler(const HttpRequestPtr& request, Callback&& callback) {
-    std::cout << request->getBody() << std::endl;
-    std::cout << "=======================================\n";
-    std::cout << request->body() << std::endl;
-    std::cout << "=======================================\n";
-    std::cout << request->bodyData() << std::endl;
-    std::ofstream outf("req.png", std::ios::out | std::ios::binary | std::ios::app);
-    auto data = request->body();
-    outf.write(data.data(), sizeof data.data());
+    log("/ request: got");
+    std::ofstream outf("request.bmp", std::ios::out | std::ios::binary);
+    outf << request->getBody();
     outf.close();
 
     Json::Value jsonBody;
-    jsonBody["message"] = "Hello, world";
+    int result = nn->recognize(std::ifstream("request.bmp"));
+    jsonBody["result"] = result;
+    log("/ request: returned " + std::to_string(result));
 
     auto response = HttpResponse::newHttpJsonResponse(jsonBody);
     callback(response);
@@ -26,11 +33,15 @@ void root_handler(const HttpRequestPtr& request, Callback&& callback) {
 
 int main()
 {
+    const int APP_PORT = 8000;
+    const std::string APP_HOST = "127.0.0.1";
+    nn = new network();
     app()
         .registerHandler("/", &root_handler, { Get })
-        .addListener("127.0.0.1", 8000)
+        .addListener(APP_HOST, APP_PORT)
         .setThreadNum(1)
         .enableServerHeader(false)
         .run();
+    log("Started on port " + std::to_string(APP_PORT));
     return EXIT_SUCCESS;
 }
