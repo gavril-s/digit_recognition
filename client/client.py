@@ -42,7 +42,7 @@ class Drawing:
         draw.line(
             [(pos1.x, pos1.y), (pos2.x, pos2.y)],
             fill="black",
-            width=4)
+            width=8)
         self.save()
 
     def on_click(self, event):
@@ -69,14 +69,20 @@ class ResUpdater(Thread):
         self.stopped = False
 
     def make_request(self):
-        response = requests.get(f"http://{self.url}:{self.port}").json()
-        return response["result"]
+        try:
+            response = requests.get(f"http://{self.url}:{self.port}", data=open('drawing.bmp', 'rb').read()).json()
+            return response["result"]
+        except:
+            return "NO CONNECTION"
 
     def run(self):
         while not self.stopped:
             res = self.make_request()
             self.res_canvas.delete("all")
-            self.res_canvas.create_text(128, 128, text=str(res), fill="white", font=('Lato 96'))
+            if str(res) == res:
+                self.res_canvas.create_text(128, 128, text=res, fill="white", font=('Lato 20'))
+            else:
+                self.res_canvas.create_text(128, 128, text=str(res), fill="white", font=('Lato 96'))
             time.sleep(self.update_time)
 
     def stop(self):
@@ -85,7 +91,7 @@ class ResUpdater(Thread):
 def main():
     SERVER_URL = "127.0.0.1"
     SERVER_PORT = 8000
-    UPDATE_TIME = 0.1
+    UPDATE_TIME = 0.1 # in seconds
 
     app = tkinter.Tk()
     app.protocol("WM_DELETE_WINDOW", app.destroy)

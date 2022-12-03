@@ -23,7 +23,7 @@ void root_handler(const HttpRequestPtr& request, Callback&& callback) {
     outf.close();
 
     Json::Value jsonBody;
-    int result = nn->recognize(std::ifstream("request.bmp"));
+    int result = nn->recognize(std::ifstream("request.bmp", std::ios::in | std::ios::binary), "bmp");
     jsonBody["result"] = result;
     log("/ request: returned " + std::to_string(result));
 
@@ -35,13 +35,14 @@ int main()
 {
     const int APP_PORT = 8000;
     const std::string APP_HOST = "127.0.0.1";
-    nn = new network();
+    nn = new network(std::vector<size_t>{4096, 64, 32, 10});
+
+    log("Started on port " + std::to_string(APP_PORT));
     app()
         .registerHandler("/", &root_handler, { Get })
         .addListener(APP_HOST, APP_PORT)
         .setThreadNum(1)
         .enableServerHeader(false)
         .run();
-    log("Started on port " + std::to_string(APP_PORT));
     return EXIT_SUCCESS;
 }
