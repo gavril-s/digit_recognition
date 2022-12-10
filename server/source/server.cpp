@@ -17,6 +17,7 @@ void log(std::string s)
 }
 
 void root_handler(const HttpRequestPtr& request, Callback&& callback) {
+    log("");
     log("/ request: got");
     std::ofstream outf("request.bmp", std::ios::out | std::ios::binary);
     outf << request->getBody();
@@ -35,7 +36,7 @@ int main()
 {
     const int APP_PORT = 8000;
     const std::string APP_HOST = "127.0.0.1";
-    nn = new network(std::vector<size_t>{4096, 64, 32, 10});
+    nn = new network(std::vector<size_t>{784, 32, 32, 10}, false);
 
     log("Started on port " + std::to_string(APP_PORT));
     app()

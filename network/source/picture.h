@@ -1,5 +1,6 @@
 #pragma once
 #include <vector>
+#include <iostream>
 #include <fstream>
 #include <string>
 
@@ -10,10 +11,10 @@ private:
 	int height = 0;
 	std::vector<std::vector<float>> pixels;
 
-	std::pair<std::vector<std::vector<float>>, std::pair<int, int>> read_bmp(std::ifstream& in);
+	std::pair<std::vector<std::vector<float>>, std::pair<int, int>> read_bmp(std::istream& in);
 public:
 	picture();
-	picture(std::ifstream& in, std::string img_type);
+	picture(std::istream& in, std::string img_type);
 
 	int get_width();
 	int get_height();
@@ -21,7 +22,7 @@ public:
 	float get(int x, int y);
 };
 
-std::pair<std::vector<std::vector<float>>, std::pair<int, int>> picture::read_bmp(std::ifstream& in)
+std::pair<std::vector<std::vector<float>>, std::pair<int, int>> picture::read_bmp(std::istream& in)
 {
 	const int HEADER_SIZE = 14;
 	const int INFO_HEADER_SIZE = 40;
@@ -50,7 +51,7 @@ std::pair<std::vector<std::vector<float>>, std::pair<int, int>> picture::read_bm
 			float g = static_cast<float>(color[1]);
 			float b = static_cast<float>(color[2]);
 
-			float avg = 1 - ((r + g + b) / (3 * 255));
+			float avg = 1.0f - ((r + g + b) / (3 * 255));
 			pro_res[y][x] = avg;
 		}
 
@@ -63,13 +64,122 @@ std::pair<std::vector<std::vector<float>>, std::pair<int, int>> picture::read_bm
 		res[res.size() - 1 - i] = pro_res[i];
 	}
 
+	int top = 0;
+	int bottom = 0;
+	int left = 0;
+	int right = 0;
+	bool found_non_zero = false;
+
+	for (int i = 0; i < res_height; i++)
+	{
+		bool only_zeros = true;
+		for (int j = 0; j < res_width; j++)
+		{
+			if (res[i][j] != 0)
+			{
+				only_zeros = false;
+				found_non_zero = true;
+			}
+		}
+
+		if (only_zeros && !found_non_zero)
+		{
+			top = i;
+		}
+		
+		if (!only_zeros && found_non_zero)
+		{
+			bottom = res_height - i - 1;
+		}
+	}
+
+	found_non_zero = false;
+	for (int i = 0; i < res_width; i++)
+	{
+		bool only_zeros = true;
+		for (int j = 0; j < res_height; j++)
+		{
+			if (res[j][i] != 0)
+			{
+				only_zeros = false;
+				found_non_zero = true;
+			}
+		}
+
+		if (only_zeros && !found_non_zero)
+		{
+			left = i;
+		}
+
+		if (!only_zeros && found_non_zero)
+		{
+			right = res_width - i - 1;
+		}
+	}
+
+	while (top - bottom > 1)
+	{
+		for (int i = 0; i < res_height - 1; i++)
+		{
+			res[i] = res[i + 1];
+		}
+		res[res_height - 1] = std::vector<float>(res_width, 0);
+		top--;
+		bottom++;
+	}
+	while (bottom - top > 1)
+	{
+		for (int i = res_height - 1; i > 0; i--)
+		{
+			res[i] = res[i - 1];
+		}
+		res[0] = std::vector<float>(res_width, 0);
+		bottom--;
+		top++;
+	}
+	
+	while (left - right > 1)
+	{
+		for (int i = 0; i < res_width - 1; i++)
+		{
+			for (int j = 0; j < res_height; j++)
+			{
+				res[j][i] = res[j][i + 1];
+			}
+		}
+
+		for (int j = 0; j < res_height; j++)
+		{
+			res[j][res_width - 1] = 0;
+		}
+		left--;
+		right++;
+	}
+	while (right - left > 1)
+	{
+		for (int i = res_width - 1; i > 0; i--)
+		{
+			for (int j = 0; j < res_height; j++)
+			{
+				res[j][i] = res[j][i - 1];
+			}
+		}
+
+		for (int j = 0; j < res_height; j++)
+		{
+			res[j][0] = 0;
+		}
+		right--;
+		left++;
+	}
+
 	return std::make_pair(res, std::make_pair(res_width, res_height));
 }
 
 picture::picture()
 	: width{ 0 }, height{ 0 }, pixels{} {}
 
-picture::picture(std::ifstream& in, std::string img_type)
+picture::picture(std::istream& in, std::string img_type)
 {
 	std::pair<std::vector<std::vector<float>>, std::pair<int, int>> pic_data;
 
@@ -87,7 +197,7 @@ picture::picture(std::ifstream& in, std::string img_type)
 	pixels = pic_data.first;
 	width = pic_data.second.first;
 	height = pic_data.second.second;
-	in.close();
+	//in.close();
 
 	std::ofstream ofs("request.txt", std::ios::out);
 	for (int i = 0; i < height; i++)

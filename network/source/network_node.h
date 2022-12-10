@@ -8,6 +8,7 @@ private:
 	float value;
 
 	float activation_func(float val);
+	float activation_func_deriv(float val);
 
 public:
 	network_node();
@@ -38,5 +39,10 @@ float network_node::get_value()
 
 float network_node::activation_func(float val)
 {
-	return 1 / (1 + exp(-val));
+	return 1.0f / (1.0f + exp(-val));
+}
+
+float network_node::activation_func_deriv(float val)
+{
+	return activation_func(val) * (1 - activation_func(val));
 }
