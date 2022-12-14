@@ -6,6 +6,8 @@
 #include <random>
 #include <algorithm>
 #include <chrono>
+#include <future>
+#include <thread>
 #include "picture.h"
 #include "network_node.h"
 
@@ -16,8 +18,9 @@ private:
 	const char* test_dataset_path  = "../network/source/mnist/mnist_test.csv";
 	const char* weights_path = "weights.txt";
 	static const int default_eras_number = 5;
-	const int train_items = 10000;
-	const int test_items = 100;
+	static const int default_size = 10000;
+	const int total_train_items = 60000;
+	const int total_test_items = 10000;
 	static const bool default_do_train = false;
 	const float learning_rate = 0.5f;
 
@@ -36,14 +39,16 @@ private:
 	void set_input(std::vector<float> inp);
 	void feed_forward();
 	std::vector<float> get_output();
-
-	void train(std::ifstream data, int repeat);
+	
+	void train(std::string data_path, int repeat);
+	void train(std::string data_path, int size, int repeat);
 	float test();
-	float back_propagation(std::ifstream& data);
-
+	float test(int size);
+	float back_propagation(std::string data_path, int loading_bar_length = 10);
+	float back_propagation(std::string data_path, int size, int loading_bar_length);
 public:
 	network();
-	network(std::vector<size_t> layers_sizes, bool do_train = default_do_train, int train_repeat = default_eras_number);
+	network(std::vector<size_t> layers_sizes, bool do_train = default_do_train, int size = default_size, int train_repeat = default_eras_number);
 
 	int recognize(std::ifstream in, std::string img_type);
 };
@@ -62,6 +67,8 @@ void network::dump_weights()
 			}
 		}
 	}
+
+	ofs.close();
 }
 
 void network::load_weights()
@@ -78,6 +85,8 @@ void network::load_weights()
 			}
 		}
 	}
+
+	ifs.close();
 }
 
 float network::get_random_weight()
@@ -159,6 +168,11 @@ std::vector<float> network::get_output()
 
 float network::test()
 {
+	return test(total_test_items);
+}
+
+float network::test(int size)
+{
 	std::ifstream data(test_dataset_path);
 
 	std::string line;
@@ -171,7 +185,7 @@ float network::test()
 	while (std::getline(data, line))
 	{
 		pic_count++;
-		if (pic_count > test_items)
+		if (pic_count > size)
 		{
 			break;
 		}
@@ -210,28 +224,36 @@ float network::test()
 		}
 		all++;
 	}
+	data.close();
 
 	return (float)right / (float)all;
 }
 
-void network::train(std::ifstream data, int repeat)
+void network::train(std::string data_path, int repeat)
+{
+	train(data_path, total_train_items, repeat);
+}
+
+void network::train(std::string data_path, int size, int repeat)
 {
 	std::cout << "Training network..." << std::endl;
 	std::cout << "(there will be " << repeat << " eras total)" << std::endl;
+	std::cout << "Current accuracy: " << test((int)(((float)total_test_items / (float)total_train_items) * size)) * 100 << '%' << std::endl;
 	for (int i = 0; i < repeat; i++)
 	{
+		std::cout << "Era #";
+		std::cout.width(std::to_string(repeat - 1).length());
+		std::cout << i << ' ';
+
 		auto start = std::chrono::high_resolution_clock::now();
 
-		float accuracy = back_propagation(data);
+		float accuracy = back_propagation(data_path, size, 24 - std::to_string(repeat - 1).length());
 
 		auto stop = std::chrono::high_resolution_clock::now();
 		auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
 		float seconds = duration.count() / 1000.0f;
 
-		std::cout << "Era #";
-		std::cout.width(std::to_string(repeat - 1).length());
-		std::cout << i << ' ';
-		for (int j = 0; j < 24 - std::to_string(repeat - 1).length(); j++) std::cout << '=';
+		//for (int j = 0; j < 24 - std::to_string(repeat - 1).length(); j++) std::cout << '=';
 		std::cout << std::endl;
 		std::cout << "Accuracy: " << accuracy * 100 << '%'
 				  << std::endl
@@ -242,22 +264,27 @@ void network::train(std::ifstream data, int repeat)
 	}
 }
 
-float network::back_propagation(std::ifstream& data)
+float network::back_propagation(std::string data_path, int loading_bar_length)
 {
-	int right = 0;
-	int all = 0;
-	int pic_count = 0;
+	return back_propagation(data_path, total_train_items);
+}
 
+float network::back_propagation(std::string data_path, int size, int loading_bar_length)
+{
+	for (int i = 0; i < loading_bar_length; i++) std::cout << '_';
+
+	std::ifstream data(data_path);
+	int pic_count = 0;
 	std::string line;
 	std::getline(data, line);
 
 	while (std::getline(data, line))
 	{
-		pic_count++;
-		if (pic_count > train_items)
+		if (pic_count >= size)
 		{
 			break;
 		}
+		pic_count++;
 
 		std::vector<std::vector<float>> pixels(28, std::vector<float>(28, 0));
 		int right_answer = 0;
@@ -286,12 +313,6 @@ float network::back_propagation(std::ifstream& data)
 		feed_forward();
 		std::vector<float> out = get_output();
 		int result = std::distance(out.begin(), std::max_element(out.begin(), out.end()));
-
-		if (result == right_answer)
-		{
-			right++;
-		}
-		all++;
 
 		std::vector<std::vector<float>> delta;
 		for (int i = 0; i < nodes.size(); i++)
@@ -330,10 +351,19 @@ float network::back_propagation(std::ifstream& data)
 				}
 			}
 		}
-	}
-	
+
+		for (int i = 0; i < loading_bar_length; i++) std::cout << '\b';
+		for (int i = 0; i < (loading_bar_length * (pic_count + 1)) / size; i++) std::cout << '=';
+		for (int i = 0; i < loading_bar_length - (loading_bar_length * (pic_count + 1)) / size; i++) std::cout << '_';
+	}	
+
+	data.close();
 	dump_weights();
-	return test();//(float)right / (float)all;
+
+	for (int i = 0; i < loading_bar_length; i++) std::cout << '\b';
+	for (int i = 0; i < loading_bar_length; i++) std::cout << '=';
+
+	return test((int)(((float)total_test_items / (float)total_train_items) * size));
 }
 
 network::network()
@@ -341,7 +371,7 @@ network::network()
 	srand(time(NULL));
 }
 
-network::network(std::vector<size_t> layers_sizes, bool do_train, int train_repeat)
+network::network(std::vector<size_t> layers_sizes, bool do_train, int size, int train_repeat)
 {
 	srand(time(NULL));
 	for (int i = 0; i < layers_sizes.size(); i++)
@@ -365,17 +395,20 @@ network::network(std::vector<size_t> layers_sizes, bool do_train, int train_repe
 	set_biases_random();
 	if (do_train)
 	{
-		train(std::ifstream(train_dataset_path), train_repeat);
+		train(train_dataset_path, size, train_repeat);
 	}
 	else
 	{
+		std::cout << "Loading weights from file..." << std::endl;
 		load_weights();
+		std::cout << "Current accuracy: " << test() * 100 << '%' << std::endl;
 	}
 }
 
 int network::recognize(std::ifstream in, std::string img_type)
 {
 	picture pic(in, img_type);
+	in.close();
 	std::vector<std::vector<float>> pixels = pic.get_pixels();
 	std::vector<float> input;
 

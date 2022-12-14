@@ -36,7 +36,7 @@ int main()
 {
     const int APP_PORT = 8000;
     const std::string APP_HOST = "127.0.0.1";
-    nn = new network(std::vector<size_t>{784, 32, 32, 10}, false);
+    nn = new network(std::vector<size_t>{784, 32, 32, 10}, true);
 
     log("Started on port " + std::to_string(APP_PORT));
     app()
